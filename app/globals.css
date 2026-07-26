@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 42 36% 97%;
+  --foreground: 220 24% 13%;
+  --card: 0 0% 100%;
+  --muted: 40 20% 94%;
+  --muted-foreground: 215 12% 44%;
+  --border: 36 18% 87%;
+  --primary: 170 55% 24%;
+  --primary-foreground: 42 36% 98%;
+  --accent: 37 91% 55%;
+  --destructive: 2 69% 52%;
+}
+
+.dark {
+  --background: 220 22% 9%;
+  --foreground: 40 20% 94%;
+  --card: 220 19% 12%;
+  --muted: 218 17% 17%;
+  --muted-foreground: 217 11% 64%;
+  --border: 218 16% 20%;
+  --primary: 166 48% 55%;
+  --primary-foreground: 220 24% 9%;
+  --accent: 37 85% 57%;
+  --destructive: 2 68% 58%;
+}
+
+* { @apply border-border; }
+html { -webkit-tap-highlight-color: transparent; }
+body {
+  @apply bg-background text-foreground antialiased;
+  font-feature-settings: "tnum" 1, "ss01" 1;
+  overflow-x: hidden;
+}
+button, a, input, select, textarea { @apply outline-none; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  @apply ring-2 ring-primary ring-offset-2 ring-offset-background;
+}
+input, select, textarea { font-size: 16px; }
+.safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { scrollbar-width: none; }
