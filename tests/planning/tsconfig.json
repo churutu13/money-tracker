@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "incremental": false,
+    "isolatedModules": false,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "target": "ES2022",
+    "rootDir": "../..",
+    "outDir": "../../.planning-test-dist"
+  },
+  "include": [
+    "../../lib/planning/**/*.ts",
+    "./**/*.ts"
+  ]
+}

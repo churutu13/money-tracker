@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calculator, CircleDollarSign, CreditCard, House, Plus, ReceiptText, Settings } from "lucide-react";
+import { Calculator, CircleDollarSign, CreditCard, House, Plus, ReceiptText, Settings, TrendingUp } from "lucide-react";
 import { useFlow } from "./app-provider";
 import { TransactionSheet } from "./transaction-sheet";
 
 const links = [
   { href: "/", label: "Home", icon: House },
   { href: "/transactions", label: "Transactions", icon: ReceiptText },
+  { href: "/plan", label: "Plan", icon: TrendingUp },
   { href: "/frontax", label: "Frontax", icon: Calculator },
   { href: "/amex", label: "Amex", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },

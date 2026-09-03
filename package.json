@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:planning": "tsc -p tests/planning/tsconfig.json && node --test .planning-test-dist/tests/planning/*.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
