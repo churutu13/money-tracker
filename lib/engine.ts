@@ -89,19 +89,18 @@ export function getCycleEntry(data: FlowData, date = new Date()) {
   const cycle = getFinancialCycle(date, getCycleStartDay(data));
   const entries = fund?.cycleEntries ?? {};
   const exact = entries[cycle.key];
-  const previousKey = Object.keys(entries).filter((key) => key < cycle.key).sort().at(-1);
-  const previous = previousKey ? entries[previousKey] : undefined;
   const legacyIncome = fund?.monthlyBalances?.[cycle.key];
-  const values = exact ?? previous ?? (legacyIncome !== undefined ? { ...emptyCycleEntry(), income: legacyIncome } : emptyCycleEntry());
-  const source = exact ? "current" : previous ? "previous" : legacyIncome !== undefined ? "legacy" : "empty";
+  const values = exact ?? (legacyIncome !== undefined ? { ...emptyCycleEntry(), income: legacyIncome } : emptyCycleEntry());
+  const source = exact ? "current" : legacyIncome !== undefined ? "legacy" : "empty";
   return {
     fund,
     cycle,
     key: cycle.key,
     values,
-    inherited: source === "previous",
+    inherited: false,
     source,
-    sourceKey: exact ? cycle.key : previousKey,
+    sourceKey: exact ? cycle.key : undefined,
+    available: values.income - values.fixed,
     remaining: values.income - values.fixed - values.lifestyle,
   };
 }

@@ -169,7 +169,7 @@ export default function HomePage() {
             ><span>{label}</span><strong>{Number(value) >= 0 ? "+" : "−"}{formatMoney(Math.abs(Number(value)), true)}</strong></motion.div>)}
           </motion.div> : null}
         </AnimatePresence>
-        <p>Available in your bank account now</p><div className="balance-divider" />
+        <p>Income − fixed for this pay cycle</p><div className="balance-divider" />
         <div className="available-split"><div><span>After unreserved Amex</span><strong className={afterAmex < 0 ? "negative-text" : ""}>{formatMoney(afterAmex)}</strong></div><div><span>Still to set aside</span><strong>{formatMoney(amex.unreservedOutstanding)}</strong></div></div>
       </motion.article>
       <details className="amex-home-card card home-collapsible-card" open={openSections.amex} onToggle={(event) => rememberSection("amex", event.currentTarget.open)}>
@@ -195,7 +195,7 @@ export default function HomePage() {
         <span className="home-menu-arrow"><ChevronDown size={18} /></span>
       </summary>
       <div className="cycle-ledger-link"><Link href="/settings">Manage fixed expenses <ChevronRight size={14} /></Link></div>
-      <div className="cycle-ledger-note">{cycleEntry.source === "previous" ? "Started with the values from your previous cycle. Edit anything below." : "Enter the totals you want to use for this cycle."}</div>
+      <div className="cycle-ledger-note">Enter your totals for this cycle. Income, fixed and lifestyle start at zero each payday.</div>
       <div className="cycle-ledger-grid">
         <CycleInput label="Income" field="income" value={cycleEntry.values.income} cycleKey={cycleEntry.key} onChange={updateCycleValue} />
         <CycleInput label="Fixed" field="fixed" value={cycleEntry.values.fixed} cycleKey={cycleEntry.key} onChange={updateCycleValue} />

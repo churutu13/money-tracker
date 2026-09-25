@@ -20,6 +20,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { useFlow } from "@/components/app-provider";
 import { useConfirm } from "@/components/confirm-provider";
+import { FundAccounts } from "@/components/fund-accounts";
 import { NumberInput } from "@/components/number-input";
 import { getCycleEntry, getFinancialCycle } from "@/lib/engine";
 import { formatMoney } from "@/lib/format";
@@ -31,7 +32,7 @@ type InstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-const formatFundBalance = (value: number) => formatMoney(value, true).replace("€", "").trim();
+const formatFundBalance = (value: number) => formatMoney(value).replace("€", "").trim();
 type SettingsSectionKey = "funds" | "fixed" | "salary" | "tax" | "planning" | "data";
 type SettingsSectionState = Record<SettingsSectionKey, boolean>;
 const SETTINGS_SECTIONS_KEY = "flow.settings-sections.v1";
@@ -179,25 +180,33 @@ export default function SettingsPage() {
       <SettingsSection icon={<CircleDollarSign />} title="Funds" subtitle="Your available, saved and reserved money." open={openSections.funds} onToggle={(open) => rememberSection("funds", open)}>
         <div className="settings-card card">
           {data.funds.map((fund) => {
-            const accountManaged = fund.kind === "income" || fund.kind === "savings" || fund.kind === "tax";
+            const accountManaged = fund.kind === "savings" || fund.kind === "tax";
             return (
-              <div className="setting-row fund-setting" key={fund.id}>
+              <div key={fund.id}>
+              <div className="setting-row fund-setting">
                 <div>
                   <input className="setting-name-input" aria-label={`${fund.name} name`} value={fund.name} onChange={(event) => updateFund({ ...fund, name: event.target.value })} />
-                  <small>{fund.kind === "income" ? `Recorded per pay cycle · ${incomeSummary.cycle.label}` : fund.kind === "tax" ? "Split by account from Home" : fund.kind === "available" ? "Monthly lifestyle wallet" : fund.kind === "savings" ? "Split by account from Home" : "Separate fund"}</small>
+                  <small>{fund.kind === "income" ? `Recorded per pay cycle · ${incomeSummary.cycle.label}` : fund.kind === "tax" ? "Edit balances by account below" : fund.kind === "available" ? "Income − fixed for this pay cycle" : fund.kind === "savings" ? "Edit balances by account below" : "Separate fund"}</small>
                 </div>
-                {accountManaged ? (
+                {accountManaged || fund.kind === "available" ? (
                   <span className="money-setting managed-balance">
                     <span className="fund-balance-number">{formatFundBalance(fund.kind === "income" ? incomeSummary.values.income : fund.balance)}</span>
                     <span>€</span>
                   </span>
                 ) : (
                   <label className="money-setting">
-                    <NumberInput aria-label={`${fund.name} balance`} value={fund.balance} step="0.01" onValueChange={(value) => { if (value !== undefined) updateFund({ ...fund, balance: value }); }} />
+                    <NumberInput key={fund.kind === "income" ? incomeSummary.key : fund.id} aria-label={`${fund.name} balance`} value={fund.kind === "income" ? incomeSummary.values.income : fund.balance} step="0.01" min={fund.kind === "income" ? 0 : undefined} onValueChange={(value) => {
+                      if (value === undefined) return;
+                      updateFund(fund.kind === "income"
+                        ? { ...fund, cycleEntries: { ...fund.cycleEntries, [incomeSummary.key]: { ...incomeSummary.values, income: Math.max(0, value) } } }
+                        : { ...fund, balance: value });
+                    }} />
                     <span>€</span>
                   </label>
                 )}
                 {fund.kind === "custom" ? <button className="remove-setting" onClick={() => deleteFund(fund.id)} aria-label={`Delete ${fund.name}`}><Trash2 size={15} /></button> : <span className="row-spacer" />}
+              </div>
+              {accountManaged ? <FundAccounts fund={fund} defaultOpen /> : null}
               </div>
             );
           })}
@@ -278,7 +287,7 @@ export default function SettingsPage() {
             <NumberInput value={data.settings.safetyBuffer} onValueChange={(value) => { if (value !== undefined) updateSettings({ ...data.settings, safetyBuffer: value }); }} />
           </label>
           <label className="setting-row">
-            <SettingCopy title="Monthly lifestyle wallet" subtitle="Used to refill Available Cash" />
+            <SettingCopy title="Monthly lifestyle wallet" subtitle="Reference amount for lifestyle planning" />
             <NumberInput value={data.settings.monthlyLifestyleBudget} onValueChange={(value) => { if (value !== undefined) updateSettings({ ...data.settings, monthlyLifestyleBudget: value }); }} />
           </label>
         </div>

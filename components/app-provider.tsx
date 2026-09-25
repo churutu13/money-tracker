@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { getCycleEntry } from "@/lib/engine";
 import { demoData } from "@/lib/demo-data";
 import type { FlowData, FlowSettings, FrontaxEntry, FrontaxYearAdjustments, Fund, FundAccount, SalaryProfile, Transaction } from "@/lib/types";
 
@@ -156,6 +157,7 @@ function applyTransactionToFunds(funds: Fund[], transaction: Transaction, direct
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<FlowData>(demoData);
+  const [currentDay, setCurrentDay] = useState(() => new Date().toDateString());
   const [hydrated, setHydrated] = useState(false);
   const [transactionSheetOpen, setTransactionSheetOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -177,6 +179,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = () => {
+      clearTimeout(timer);
+      const now = new Date();
+      setCurrentDay(now.toDateString());
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      timer = setTimeout(refresh, midnight.getTime() - now.getTime());
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+
+  const displayData = useMemo(() => {
+    const cycle = getCycleEntry(data, new Date(currentDay));
+    return { ...data, funds: data.funds.map((fund) => fund.kind === "available"
+      ? { ...fund, balance: cycle.available }
+      : fund) };
+  }, [data, currentDay]);
 
   const addTransaction = useCallback((transaction: Transaction) => {
     setData((current) => ({ ...current, funds: applyTransactionToFunds(current.funds, transaction, 1), transactions: [transaction, ...current.transactions] }));
@@ -279,7 +307,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(() => ({
-    data,
+    data: displayData,
     hydrated,
     addTransaction,
     updateTransaction,
@@ -305,7 +333,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     transactionSheetOpen,
     openTransactionSheet,
     closeTransactionSheet,
-  }), [data, hydrated, addTransaction, updateTransaction, deleteTransaction, duplicateTransaction, updateSettings, updateSalary, addSalary, deleteSalary, updateFund, addFund, deleteFund, updateFundAccount, addFundAccount, deleteFundAccount, saveFrontaxEntry, deleteFrontaxEntry, updateFrontaxYearAdjustments, resetDemo, replaceData, editingTransaction, transactionPreset, transactionSheetOpen, openTransactionSheet, closeTransactionSheet]);
+  }), [displayData, hydrated, addTransaction, updateTransaction, deleteTransaction, duplicateTransaction, updateSettings, updateSalary, addSalary, deleteSalary, updateFund, addFund, deleteFund, updateFundAccount, addFundAccount, deleteFundAccount, saveFrontaxEntry, deleteFrontaxEntry, updateFrontaxYearAdjustments, resetDemo, replaceData, editingTransaction, transactionPreset, transactionSheetOpen, openTransactionSheet, closeTransactionSheet]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

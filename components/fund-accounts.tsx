@@ -8,10 +8,10 @@ import { NumberInput } from "@/components/number-input";
 import { formatMoney } from "@/lib/format";
 import type { Fund } from "@/lib/types";
 
-export function FundAccounts({ fund }: { fund: Fund }) {
+export function FundAccounts({ fund, defaultOpen = false }: { fund: Fund; defaultOpen?: boolean }) {
   const { updateFundAccount, addFundAccount, deleteFundAccount } = useFlow();
   const confirm = useConfirm();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const accounts = fund.accounts ?? [];
 
   return (
