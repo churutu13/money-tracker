@@ -17,10 +17,12 @@ const NO_ADJUSTMENTS: FrontaxYearAdjustments = { deductionsEur: 0, priorAdvances
 const safeRate = (rate: number) => Math.max(0.0001, rate || 0.937);
 const entryKey = (entry: Pick<FrontaxEntry, "year" | "month">) => `${entry.year}-${String(entry.month).padStart(2, "0")}`;
 
-function grossItalianTax(taxableIncome: number) {
+function grossItalianTax(taxableIncome: number, fiscalYear: number) {
+  // Legge 199/2025, art. 1, comma 3: second bracket reduced from 2026.
+  const secondBracketRate = fiscalYear >= 2026 ? 0.33 : 0.35;
   if (taxableIncome <= 28_000) return taxableIncome * 0.23;
-  if (taxableIncome <= 50_000) return 28_000 * 0.23 + (taxableIncome - 28_000) * 0.35;
-  return 28_000 * 0.23 + 22_000 * 0.35 + (taxableIncome - 50_000) * 0.43;
+  if (taxableIncome <= 50_000) return 28_000 * 0.23 + (taxableIncome - 28_000) * secondBracketRate;
+  return 28_000 * 0.23 + 22_000 * secondBracketRate + (taxableIncome - 50_000) * 0.43;
 }
 
 function employmentDeduction(taxableIncome: number) {
@@ -52,7 +54,7 @@ export function calculateFrontax(entries: FrontaxEntry[], adjustments: FrontaxYe
   const workDeduction = employmentDeduction(taxableIncome);
   const additionalWorkDeduction = additionalEmploymentDeduction(taxableIncome, fiscalYear);
   const otherDeductions = Math.max(0, adjustments.deductionsEur || 0);
-  const beforeAdditionals = grossItalianTax(taxableIncome) - workDeduction - additionalWorkDeduction - otherDeductions - sourceTaxCredit;
+  const beforeAdditionals = grossItalianTax(taxableIncome, fiscalYear) - workDeduction - additionalWorkDeduction - otherDeductions - sourceTaxCredit;
   const estimatedItalianTax = Math.max(0, beforeAdditionals + lombardyAdditionalTax(taxableIncome) + taxableIncome * 0.0035);
   const balanceDue = Math.max(0, estimatedItalianTax - Math.max(0, adjustments.priorAdvancesEur || 0));
   const nextYearAdvance = estimatedItalianTax;
@@ -60,12 +62,12 @@ export function calculateFrontax(entries: FrontaxEntry[], adjustments: FrontaxYe
   return { estimatedItalianTax, taxableIncome, sourceTaxCredit, employmentDeduction: workDeduction, additionalEmploymentDeduction: additionalWorkDeduction, otherDeductions, balanceDue, nextYearAdvance, totalCashToReserve };
 }
 
-export function calculateItalianTaxBeforeDeductions(entries: FrontaxEntry[]) {
+export function calculateItalianTaxBeforeDeductions(entries: FrontaxEntry[], fiscalYear = entries[0]?.year ?? new Date().getFullYear()) {
   const incomeAfterSocialEur = entries.reduce((sum, entry) => sum + Math.max(0, entry.grossIncomeChf - entry.socialContributionsChf) / safeRate(entry.exchangeRate), 0);
   const taxableIncome = Math.max(0, incomeAfterSocialEur - 10_000);
   return {
     taxableIncome,
-    estimatedItalianTax: grossItalianTax(taxableIncome) + lombardyAdditionalTax(taxableIncome) + taxableIncome * 0.0035,
+    estimatedItalianTax: grossItalianTax(taxableIncome, fiscalYear) + lombardyAdditionalTax(taxableIncome) + taxableIncome * 0.0035,
   };
 }
 
