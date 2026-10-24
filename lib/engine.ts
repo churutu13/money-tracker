@@ -30,6 +30,74 @@ export function getFinancialCycleAtOffset(date: Date, startDay: number, offset: 
   return getFinancialCycle(dateInMonth(current.start.getFullYear(), current.start.getMonth() + offset, startDay), startDay);
 }
 
+// Salary cycles can start early/late once, without changing the usual payday.
+export function getPayCycle(data: FlowData, date = new Date()) {
+  const resets = data.funds.find(fund => fund.kind === "income")?.payCycleResets ?? {};
+  const day = getCycleStartDay(data);
+  const boundary = (month: Date) => {
+    const key = monthKey(month);
+    return { key, start: resets[key] ? new Date(`${resets[key].startDate}T12:00:00`) : dateInMonth(month.getFullYear(), month.getMonth(), day) };
+  };
+  const calendarMonth = new Date(date.getFullYear(), date.getMonth(), 1, 12);
+  const thisMonth = boundary(calendarMonth);
+  const current = atNoon(date) >= thisMonth.start
+    ? thisMonth
+    : boundary(new Date(date.getFullYear(), date.getMonth() - 1, 1, 12));
+  const [year, month] = current.key.split("-").map(Number);
+  const next = boundary(new Date(year, month, 1, 12));
+  const end = new Date(next.start);
+  end.setDate(end.getDate() - 1);
+  const startLabel = current.start.toLocaleDateString("en-IE", { day: "numeric", month: "short" });
+  const endLabel = end.toLocaleDateString("en-IE", { day: "numeric", month: "short" });
+  return { key: current.key, start: current.start, end, label: `${startLabel} – ${endLabel}`, longLabel: `${startLabel} – ${end.toLocaleDateString("en-IE", { day: "numeric", month: "short", year: "numeric" })}` };
+}
+
+export function restartPayCycle(data: FlowData, date = new Date()): FlowData {
+  const fund = data.funds.find(item => item.kind === "income");
+  const key = monthKey(date);
+  // One reset per salary month. Repeated clicks never erase newly entered data.
+  if (!fund || fund.payCycleResets?.[key]) return data;
+  const startDate = `${key}-${String(date.getDate()).padStart(2, "0")}`;
+  const salary = data.salaryProfiles[0];
+  const reset = {
+    startDate,
+    excludedTransactionIds: data.transactions.filter(t => t.date === startDate && !t.recurrence).map(t => t.id),
+    previousEntry: fund.cycleEntries?.[key] ? { ...fund.cycleEntries[key] } : undefined,
+    salaryId: salary?.id,
+    previousOvertime: salary?.monthlyOvertime?.[key] ? { ...salary.monthlyOvertime[key] } : undefined,
+  };
+  return {
+    ...data,
+    funds: data.funds.map(item => item.id === fund.id ? {
+      ...item,
+      payCycleResets: { ...item.payCycleResets, [key]: reset },
+      cycleEntries: { ...item.cycleEntries, [key]: emptyCycleEntry() },
+    } : item),
+    salaryProfiles: data.salaryProfiles.map(item => item.id === salary?.id ? { ...item, monthlyOvertime: { ...item.monthlyOvertime, [key]: { hours: 0 } } } : item),
+  };
+}
+
+export function undoPayCycleRestart(data: FlowData, date = new Date()): FlowData {
+  const fund = data.funds.find(item => item.kind === "income");
+  const key = getPayCycle(data, date).key;
+  const reset = fund?.payCycleResets?.[key];
+  if (!fund || !reset) return data;
+  const entries = { ...fund.cycleEntries };
+  const resets = { ...fund.payCycleResets };
+  if (reset.previousEntry) entries[key] = { ...reset.previousEntry }; else delete entries[key];
+  delete resets[key];
+  return {
+    ...data,
+    funds: data.funds.map(item => item.id === fund.id ? { ...item, cycleEntries: entries, payCycleResets: resets } : item),
+    salaryProfiles: data.salaryProfiles.map(item => {
+      if (item.id !== reset.salaryId) return item;
+      const overtime = { ...item.monthlyOvertime };
+      if (reset.previousOvertime) overtime[key] = { ...reset.previousOvertime }; else delete overtime[key];
+      return { ...item, monthlyOvertime: overtime };
+    }),
+  };
+}
+
 export function recurrenceDatesInRange(recurrence: Recurrence, rangeStart: Date, rangeEnd: Date): Date[] {
   const start = new Date(`${recurrence.startDate}T12:00:00`);
   const end = recurrence.endDate ? new Date(`${recurrence.endDate}T12:00:00`) : null;
@@ -86,10 +154,12 @@ const emptyCycleEntry = (): CycleEntry => ({ income: 0, fixed: 0, savings: 0, li
 
 // Recurring allocations (including EV) are already covered by the cycle totals.
 export function getCycleTransactionDelta(data: FlowData, date = new Date()) {
-  const cycle = getFinancialCycle(date, getCycleStartDay(data));
+  const cycle = getPayCycle(data, date);
   const today = atNoon(date);
+  const excluded = new Set(data.funds.find(fund => fund.kind === "income")?.payCycleResets?.[cycle.key]?.excludedTransactionIds ?? []);
   const availableIds = new Set(data.funds.filter((fund) => fund.kind === "available").map((fund) => fund.id));
   return data.transactions.reduce((total, transaction) => {
+    if (excluded.has(transaction.id)) return total;
     const posted = new Date(`${transaction.date}T12:00:00`);
     if (transaction.recurrence || posted < cycle.start || posted > cycle.end || posted > today) return total;
     if (transaction.type === "expense" && transaction.recurringBudgetId) return total;
@@ -105,7 +175,7 @@ export function getCycleTransactionDelta(data: FlowData, date = new Date()) {
 
 export function getCycleEntry(data: FlowData, date = new Date()) {
   const fund = data.funds.find((item) => item.kind === "income");
-  const cycle = getFinancialCycle(date, getCycleStartDay(data));
+  const cycle = getPayCycle(data, date);
   const entries = fund?.cycleEntries ?? {};
   const exact = entries[cycle.key];
   const legacyIncome = fund?.monthlyBalances?.[cycle.key];
@@ -225,20 +295,25 @@ export function getAmexSummary(data: FlowData, date = new Date()) {
 
 export function getRecurringStatus(transaction: Transaction, data: FlowData, date = new Date()) {
   if (!transaction.recurrence) return null;
-  const cycle = getFinancialCycle(date, getCycleStartDay(data));
+  const cycle = getPayCycle(data, date);
   const occurrences = recurrenceDatesInRange(transaction.recurrence, cycle.start, cycle.end);
   const today = atNoon(date);
   return occurrences.some((occurrence) => occurrence <= today) ? "passed" : "upcoming";
 }
 
 export function getRecurringBudgetProgress(data: FlowData, budget: Transaction, date = new Date()) {
-  const cycle = getFinancialCycle(date, getCycleStartDay(data));
+  const cycle = getPayCycle(data, date);
   const today = atNoon(date);
+  // A monthly allocation remains available if payday moves past its usual due day.
+  const [year, month] = cycle.key.split("-").map(Number);
+  const nominal = getFinancialCycle(dateInMonth(year, month - 1, getCycleStartDay(data)), getCycleStartDay(data));
   const occurrences = budget.recurrence
-    ? recurrenceDatesInRange(budget.recurrence, cycle.start, cycle.end)
+    ? recurrenceDatesInRange(budget.recurrence, nominal.start, nominal.end)
     : [];
   const planned = budget.amount * occurrences.length;
+  const excluded = new Set(data.funds.find(fund => fund.kind === "income")?.payCycleResets?.[cycle.key]?.excludedTransactionIds ?? []);
   const linkedTransactions = data.transactions.filter((transaction) => {
+    if (excluded.has(transaction.id)) return false;
     if (transaction.type !== "expense" || transaction.recurrence || transaction.recurringBudgetId !== budget.id) return false;
     const transactionDate = new Date(`${transaction.date}T12:00:00`);
     return transactionDate >= cycle.start && transactionDate <= cycle.end && transactionDate <= today;
@@ -256,7 +331,7 @@ export function getRecurringBudgetProgress(data: FlowData, budget: Transaction, 
 }
 
 export function getRecurringCycleSummary(data: FlowData, date = new Date()) {
-  const cycle = getFinancialCycle(date, getCycleStartDay(data));
+  const cycle = getPayCycle(data, date);
   const today = atNoon(date);
   return data.transactions.reduce((summary, transaction) => {
     if (transaction.type !== "expense" || !transaction.recurrence) return summary;
@@ -265,7 +340,7 @@ export function getRecurringCycleSummary(data: FlowData, date = new Date()) {
     if (transaction.recurrence.spendingBudget) {
       const progress = getRecurringBudgetProgress(data, transaction, date);
       return {
-        planned: summary.planned + planned,
+        planned: summary.planned + progress.planned,
         remaining: summary.remaining + progress.remaining,
         budgetSpent: summary.budgetSpent + progress.spent,
       };

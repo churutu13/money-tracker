@@ -549,3 +549,8 @@ button { color: inherit; }
 .loan-form input, .loan-form select, .loan-form textarea, .loan-detail select { padding:11px; border:1px solid var(--line); border-radius:10px; background:var(--surface); color:var(--text); width:100%; }
 .loan-form input[type=checkbox] { width:auto; justify-self:start; }
 @media(max-width:760px) { .loan-summary { grid-template-columns:1fr; } .loan-list-item { flex-direction:column; } .bottom-nav { grid-template-columns:repeat(6,minmax(0,1fr)); } }
+
+.paycycle-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:18px 22px 0; }
+.paycycle-actions .secondary-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+.paycycle-actions button:disabled { opacity:.55; cursor:default; }
+.paycycle-reset-note { padding:10px 22px 0; margin:0; font-size:12px; line-height:1.6; color:var(--muted); }

@@ -1,4 +1,4 @@
-const CACHE = "flow-shell-v21";
+const CACHE = "flow-shell-v22";
 const SHELL = ["/", "/transactions", "/loans", "/frontax", "/amex", "/settings", "/manifest.webmanifest", "/icon.svg", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"];
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL))));
 self.addEventListener("install", () => self.skipWaiting());

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { getCycleEntry, updateCurrentCycle, type CycleEntryPatch } from "@/lib/engine";
+import { getCycleEntry, restartPayCycle, undoPayCycleRestart, updateCurrentCycle, type CycleEntryPatch } from "@/lib/engine";
 import { applyFundDelta, applyTransactionToFunds } from "@/lib/fund-mutations";
 import { saveLoan, postLoanMovement, removeLoanMovement, editLoanMovement, initialLoans } from "@/lib/loans";
 import type { PersonalLoan, LoanPlanMovement } from "@/lib/types";
@@ -28,6 +28,8 @@ type StoreContextValue = {
   deleteSalary: (id: string) => void;
   updateFund: (fund: Fund) => void;
   updateCycle: (patch: CycleEntryPatch) => void;
+  restartCycle: () => void;
+  undoCycleRestart: () => void;
   addFund: (fund: Fund) => void;
   deleteFund: (id: string) => void;
   updateFundAccount: (fundId: string, account: FundAccount) => void;
@@ -232,6 +234,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const addSalary = useCallback((profile: SalaryProfile) => setData((current) => ({ ...current, salaryProfiles: [...current.salaryProfiles, profile] })), []);
   const deleteSalary = useCallback((id: string) => setData((current) => ({ ...current, salaryProfiles: current.salaryProfiles.filter((item) => item.id !== id) })), []);
+  const restartCycle = useCallback(() => setData(current => restartPayCycle(current)), []);
+  const undoCycleRestart = useCallback(() => setData(current => undoPayCycleRestart(current)), []);
   const updateCycle = useCallback((patch: CycleEntryPatch) => setData((current) => updateCurrentCycle(current, patch)), []);
   const updateFund = useCallback((fund: Fund) => setData((current) => ({ ...current, funds: current.funds.map((item) => item.id === fund.id ? fund : item) })), []);
   const addFund = useCallback((fund: Fund) => setData((current) => ({ ...current, funds: [...current.funds, fund] })), []);
@@ -311,6 +315,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     deleteSalary,
     updateFund,
     updateCycle,
+    restartCycle,
+    undoCycleRestart,
     addFund,
     deleteFund,
     updateFundAccount,
@@ -326,7 +332,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     transactionSheetOpen,
     openTransactionSheet,
     closeTransactionSheet,
-  }), [editLoanAction, saveLoanAction, postLoanAction, removeLoanAction, displayData, hydrated, addTransaction, updateTransaction, deleteTransaction, duplicateTransaction, updateSettings, updateSalary, addSalary, deleteSalary, updateFund, updateCycle, addFund, deleteFund, updateFundAccount, addFundAccount, deleteFundAccount, saveFrontaxEntry, deleteFrontaxEntry, updateFrontaxYearAdjustments, resetDemo, replaceData, editingTransaction, transactionPreset, transactionSheetOpen, openTransactionSheet, closeTransactionSheet]);
+  }), [editLoanAction, saveLoanAction, postLoanAction, removeLoanAction, displayData, hydrated, addTransaction, updateTransaction, deleteTransaction, duplicateTransaction, updateSettings, updateSalary, addSalary, deleteSalary, updateFund, updateCycle, addFund, deleteFund, restartCycle, undoCycleRestart, updateFundAccount, addFundAccount, deleteFundAccount, saveFrontaxEntry, deleteFrontaxEntry, updateFrontaxYearAdjustments, resetDemo, replaceData, editingTransaction, transactionPreset, transactionSheetOpen, openTransactionSheet, closeTransactionSheet]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

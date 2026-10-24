@@ -16,6 +16,7 @@ export interface Fund {
   accounts?: FundAccount[];
   monthlyBalances?: Record<string, number>;
   cycleEntries?: Record<string, CycleEntry>;
+  payCycleResets?: Record<string, PayCycleReset>;
 }
 
 export interface CycleEntry {
@@ -25,6 +26,14 @@ export interface CycleEntry {
   savings?: number;
   availableOverride?: number;
   overrideTransactionBaseline?: number;
+}
+
+export interface PayCycleReset {
+  startDate: string;
+  excludedTransactionIds: string[];
+  previousEntry?: CycleEntry;
+  salaryId?: string;
+  previousOvertime?: { hours: number; usableOverride?: number };
 }
 
 export interface Recurrence {

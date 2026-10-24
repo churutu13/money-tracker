@@ -22,7 +22,7 @@ import { useFlow } from "@/components/app-provider";
 import { useConfirm } from "@/components/confirm-provider";
 import { FundAccounts } from "@/components/fund-accounts";
 import { NumberInput } from "@/components/number-input";
-import { getCycleEntry, getFinancialCycle } from "@/lib/engine";
+import { getCycleEntry, getFinancialCycle, getPayCycle } from "@/lib/engine";
 import { formatMoney } from "@/lib/format";
 import { OVERTIME_TAX_RESERVE_PER_HOUR, overtimeTaxReserve } from "@/lib/overtime";
 import type { FlowData, Fund, SalaryProfile, Transaction } from "@/lib/types";
@@ -347,7 +347,8 @@ function FixedExpensesEditor({ expenses, funds, onAdd, onEdit, onDelete }: { exp
 }
 
 function SalaryEditor({ salary, onChange, onDelete }: { salary: SalaryProfile; onChange: (salary: SalaryProfile) => void; onDelete: () => void }) {
-  const currentCycle = getFinancialCycle(new Date(), salary.payday);
+  const { data } = useFlow();
+  const currentCycle = data.salaryProfiles[0]?.id === salary.id ? getPayCycle(data) : getFinancialCycle(new Date(), salary.payday);
   const currentMonth = currentCycle.key;
   const monthly = salary.monthlyOvertime?.[currentMonth] ?? { hours: 0 };
   const estimated = monthly.usableOverride ?? monthly.hours * (salary.overtimeGrossRate ?? 0) * salary.overtimeNetRatio;

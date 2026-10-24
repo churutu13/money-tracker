@@ -7,7 +7,7 @@ import { AnimatedMoney } from "@/components/animated-money";
 import { useFlow } from "@/components/app-provider";
 import { useConfirm } from "@/components/confirm-provider";
 import { PageHeader } from "@/components/page-header";
-import { getCycleStartDay, getFinancialCycle, getRecurringBudgetProgress, getRecurringCycleSummary, getRecurringStatus, recurrenceDatesInRange } from "@/lib/engine";
+import { getPayCycle, getRecurringBudgetProgress, getRecurringCycleSummary, getRecurringStatus, recurrenceDatesInRange } from "@/lib/engine";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Transaction, TransactionType } from "@/lib/types";
 
@@ -52,11 +52,10 @@ export default function TransactionsPage() {
     if (filter === "amex") return item.type === "expense" && item.paymentMethod === "amex";
     return filter === "all" || item.type === filter;
   }).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [data.transactions, evChargingBudget?.id, filter, search]);
-  const cycleStartDay = getCycleStartDay(data);
-  const currentCycle = getFinancialCycle(new Date(), cycleStartDay);
-  const groups = Object.groupBy(filtered, (item) => item.recurrence && recurrenceDatesInRange(item.recurrence, currentCycle.start, currentCycle.end).length
+  const currentCycle = getPayCycle(data);
+  const groups = Object.groupBy(filtered, (item) => item.recurrence && ((item.recurrence.spendingBudget && getRecurringBudgetProgress(data, item).planned > 0) || recurrenceDatesInRange(item.recurrence, currentCycle.start, currentCycle.end).length)
     ? currentCycle.longLabel
-    : getFinancialCycle(new Date(`${item.date}T12:00:00`), cycleStartDay).longLabel);
+    : getPayCycle(data, new Date(`${item.date}T12:00:00`)).longLabel);
   const recurringSummary = useMemo(() => getRecurringCycleSummary(data), [data]);
 
   useEffect(() => () => {

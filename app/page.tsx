@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { CalendarClock, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, CreditCard, PiggyBank, ShieldCheck, WalletCards } from "lucide-react";
+import { CalendarClock, CheckCircle2, ChevronDown, ChevronRight, CircleDollarSign, CreditCard, PiggyBank, RotateCcw, ShieldCheck, WalletCards } from "lucide-react";
 import { AnimatedMoney } from "@/components/animated-money";
 import { PageHeader } from "@/components/page-header";
 import { FundAccounts } from "@/components/fund-accounts";
 import { NumberInput } from "@/components/number-input";
+import { useConfirm } from "@/components/confirm-provider";
 import { useFlow } from "@/components/app-provider";
 import { getAmexSummary, getCycleEntry, getRecurringBudgetProgress, recurrenceDatesInRange } from "@/lib/engine";
 import { forecastFrontax, frontaxEntriesForYear, frontaxReserveProgress } from "@/lib/frontax";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, monthKey } from "@/lib/format";
 
 type CycleInputField = "income" | "fixed" | "savings";
 
@@ -24,7 +25,8 @@ const DEFAULT_HOME_SECTIONS: HomeSectionState = { amex: true, cycle: true, upcom
 type SalaryBreakdown = { id: string; salary: number; taxReserve: number; upcomingBills: number };
 
 export default function HomePage() {
-  const { data, hydrated, openTransactionSheet, updateCycle, updateSalary } = useFlow();
+  const { data, hydrated, openTransactionSheet, updateCycle, updateSalary, restartCycle, undoCycleRestart } = useFlow();
+  const confirm = useConfirm();
   const [openSections, setOpenSections] = useState<HomeSectionState>(DEFAULT_HOME_SECTIONS);
   const [salaryBreakdown, setSalaryBreakdown] = useState<SalaryBreakdown | null>(null);
   const [cashGlow, setCashGlow] = useState(false);
@@ -48,6 +50,9 @@ export default function HomePage() {
   const taxTarget = frontaxEntries.length ? frontaxTax : data.settings.expectedTaxBill;
   const currentTaxTarget = frontaxEntries.length ? frontaxProgress.recommendedToDate : taxTarget;
   const cycleEntry = getCycleEntry(data);
+  const manualReset = cycleEntry.fund?.payCycleResets?.[cycleEntry.key];
+  const resetThisMonth = cycleEntry.fund?.payCycleResets?.[monthKey(now)];
+  const cycleInputKey = `${cycleEntry.key}:${manualReset?.startDate ?? "automatic"}`;
   const primarySalary = data.salaryProfiles[0];
   const cycleOvertime = primarySalary?.monthlyOvertime?.[cycleEntry.key]?.hours ?? 0;
   const amex = getAmexSummary(data);
@@ -193,13 +198,30 @@ export default function HomePage() {
         <strong className="home-menu-preview">{formatMoney(cycleEntry.remaining, true)}</strong>
         <span className="home-menu-arrow"><ChevronDown size={18} /></span>
       </summary>
+      <div className="paycycle-actions">
+        <button type="button" className="secondary-button" disabled={!hydrated || Boolean(resetThisMonth)} onClick={restartCycle}>
+          <RotateCcw size={15} />{resetThisMonth ? "Paycycle già riavviato" : "Inizia nuovo paycycle oggi"}
+        </button>
+        {manualReset && <button type="button" className="text-button" onClick={async () => {
+          const approved = await confirm({
+            title: "Annullare il reset?",
+            message: "Ripristina i totali e gli straordinari precedenti al reset. I nuovi totali inseriti dopo il reset verranno sostituiti; le transazioni rimangono registrate.",
+            confirmLabel: "Annulla reset",
+            cancelLabel: "Mantieni nuovo ciclo",
+          });
+          if (approved) undoCycleRestart();
+        }}>Annulla reset</button>}
+      </div>
+      <p className="paycycle-reset-note" role="status">{manualReset
+        ? `Paycycle avviato il ${manualReset.startDate}. Il prossimo riparte il giorno abituale.`
+        : "Stipendio arrivato in anticipo o in ritardo? Riparti da oggi con i totali a zero, senza modificare conti e transazioni."}</p>
       <div className="cycle-ledger-link"><Link href="/settings">Manage fixed expenses <ChevronRight size={14} /></Link></div>
       <div className="cycle-ledger-note">Enter your totals for this cycle. Income, fixed and savings start at zero each payday. Lifestyle is your available cash.</div>
       <div className="cycle-ledger-grid">
-        <CycleInput label="Income" field="income" value={cycleEntry.values.income} cycleKey={cycleEntry.key} onChange={updateCycleValue} />
-        <CycleInput label="Fixed" field="fixed" value={cycleEntry.values.fixed} cycleKey={cycleEntry.key} onChange={updateCycleValue} />
-        <CycleInput label="Savings" field="savings" value={cycleEntry.values.savings} cycleKey={cycleEntry.key} onChange={updateCycleValue} />
-        <label className="cycle-input overtime-cycle-input"><span><CalendarClock size={15} />Overtime hours</span><div><NumberInput key={`${cycleEntry.key}-overtime`} min="0" step="0.1" value={cycleOvertime} onValueChange={updateCycleOvertime} aria-label="Overtime hours for current pay cycle" /><small>hours</small></div><small>Informational · included in payslip amounts</small></label>
+        <CycleInput label="Income" field="income" value={cycleEntry.values.income} cycleKey={cycleInputKey} onChange={updateCycleValue} />
+        <CycleInput label="Fixed" field="fixed" value={cycleEntry.values.fixed} cycleKey={cycleInputKey} onChange={updateCycleValue} />
+        <CycleInput label="Savings" field="savings" value={cycleEntry.values.savings} cycleKey={cycleInputKey} onChange={updateCycleValue} />
+        <label className="cycle-input overtime-cycle-input"><span><CalendarClock size={15} />Overtime hours</span><div><NumberInput key={`${cycleInputKey}-overtime`} min="0" step="0.1" value={cycleOvertime} onValueChange={updateCycleOvertime} aria-label="Overtime hours for current pay cycle" /><small>hours</small></div><small>Informational · included in payslip amounts</small></label>
         <div className={`cycle-result ${cycleEntry.remaining < 0 ? "negative" : ""}`}><span>Lifestyle · Available Cash</span><strong>{formatMoney(cycleEntry.available)}</strong><small>{cycleEntry.overridden ? "Manual balance + subsequent transactions" : "Income − fixed − savings + transactions"}</small></div>
       </div>
     </details> : null}
