@@ -554,3 +554,22 @@ button { color: inherit; }
 .paycycle-actions .secondary-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
 .paycycle-actions button:disabled { opacity:.55; cursor:default; }
 .paycycle-reset-note { padding:10px 22px 0; margin:0; font-size:12px; line-height:1.6; color:var(--muted); }
+
+.tax-account-tracking { margin-top:10px; padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+.tax-account-tracking h3, .tax-account-tracking summary { margin:0 0 12px; font-size:14px; font-weight:650; }
+.tax-account-tracking summary { cursor:pointer; margin:0; }
+.tax-account-tracking p { margin:12px 0; font-size:12px; line-height:1.6; color:var(--muted); }
+.tax-account-tracking small { display:block; margin-top:6px; color:var(--muted); line-height:1.5; }
+.tax-account-tracking a { color:var(--text); text-decoration:underline; text-underline-offset:3px; }
+.tax-reserve-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.tax-reserve-metrics > div { padding:12px; border:1px solid var(--line); border-radius:10px; min-width:0; }
+.tax-reserve-metrics strong { display:block; margin-top:8px; font-size:18px; font-variant-numeric:tabular-nums; }
+.tax-reserve-metrics .actual { background:color-mix(in srgb,var(--accent) 8%,var(--surface)); }
+.tax-tracking-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:14px 0; }
+.tax-tracking-form { display:grid; gap:14px; margin-top:16px; }
+.tax-account-tracking label { display:grid; gap:8px; font-size:12px; margin:12px 0; color:var(--muted); }
+.tax-account-tracking input, .tax-account-tracking select { min-width:0; width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text); font-size:15px; }
+.tax-real-preview { display:grid; gap:6px; padding:14px; border-radius:10px; background:var(--surface-2); }
+.tax-real-preview strong { font-size:24px; }
+.tax-account-tracking button:disabled { opacity:.5; cursor:default; }
+@media(max-width:600px) { .tax-reserve-metrics { grid-template-columns:1fr; } .tax-account-tracking { padding:12px; } .tax-tracking-actions > button { width:100%; } }

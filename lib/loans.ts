@@ -24,6 +24,8 @@ export function saveLoan(data: FlowData, loan: PersonalLoan): FlowData {
   if (loan.monthlyAdvance && (!Number.isFinite(loan.monthlyAdvance) || loan.monthlyAdvance < 0)) throw new Error("Importo non valido.");
   if (loan.cap !== undefined && (!Number.isFinite(loan.cap) || loan.cap <= 0)) throw new Error("Tetto non valido.");
   if (loan.repaymentFrom && loan.repaymentTo && loan.repaymentFrom > loan.repaymentTo) throw new Error("Finestra di rimborso non valida.");
+  const tracked = data.funds.flatMap(f => (f.accounts ?? []).filter(a => a.taxReserveTracking?.loanId === loan.id).map(a => ({ fund: f, account: a })))[0];
+  if (tracked && (loan.type !== "given" || loan.fundId !== tracked.fund.id || loan.fundAccountId !== tracked.account.id)) throw new Error("Questo prestito è collegato alla riserva tasse: mantieni il conto di origine e il tipo concesso.");
   const previous = data.loans?.find(l => l.id === loan.id);
   if (previous && previous.type !== loan.type && loanTotals(data, loan.id).movements.length) throw new Error("Non puoi cambiare tipo dopo aver registrato movimenti.");
   const loans = data.loans ?? [];

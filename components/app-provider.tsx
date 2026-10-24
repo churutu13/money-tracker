@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getCycleEntry, restartPayCycle, undoPayCycleRestart, updateCurrentCycle, type CycleEntryPatch } from "@/lib/engine";
+import { configureReserveAccount, saveReserveAccount, updateReservePreferences, type ReserveSnapshot } from "@/lib/tax-reserve";
+import type { TaxReserveTracking } from "@/lib/types";
 import { applyFundDelta, applyTransactionToFunds } from "@/lib/fund-mutations";
 import { saveLoan, postLoanMovement, removeLoanMovement, editLoanMovement, initialLoans } from "@/lib/loans";
 import type { PersonalLoan, LoanPlanMovement } from "@/lib/types";
@@ -12,6 +14,9 @@ import type { FlowData, FlowSettings, FrontaxEntry, FrontaxYearAdjustments, Fund
 type TransactionPreset = "default" | "fixed" | "amex";
 
 type StoreContextValue = {
+  configureReserveAccount: (fundId: string, accountId: string, loanId?: string) => void;
+  saveReserveAccount: (fundId: string, accountId: string, snapshot: ReserveSnapshot) => void;
+  updateReservePreferences: (fundId: string, accountId: string, preferences: Pick<TaxReserveTracking, "monthlyContribution" | "monthlyLoan" | "endMonth">) => void;
   editLoanMovement: (transactionId: string, movement: LoanPlanMovement) => void;
   saveLoan: (loan: PersonalLoan) => void;
   postLoanMovement: (loanId: string, movement: LoanPlanMovement, transactionId?: string) => void;
@@ -296,12 +301,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => { setEditingTransaction(null); setTransactionPreset("default"); }, 220);
   }, []);
 
+  const configureReserveAction = useCallback((fundId: string, accountId: string, loanId?: string) => setData(current => configureReserveAccount(current, fundId, accountId, loanId)), []);
+  const saveReserveAction = useCallback((fundId: string, accountId: string, snapshot: ReserveSnapshot) => setData(current => saveReserveAccount(current, fundId, accountId, snapshot)), []);
+  const reservePreferencesAction = useCallback((fundId: string, accountId: string, preferences: Pick<TaxReserveTracking, "monthlyContribution" | "monthlyLoan" | "endMonth">) => setData(current => updateReservePreferences(current, fundId, accountId, preferences)), []);
   const editLoanAction = useCallback((id: string, movement: LoanPlanMovement) => setData(current => editLoanMovement(current, id, movement)), []);
   const saveLoanAction = useCallback((loan: PersonalLoan) => setData(current => saveLoan(current, loan)), []);
   const postLoanAction = useCallback((id: string, movement: LoanPlanMovement, transactionId?: string) => setData(current => postLoanMovement(current, id, movement, transactionId)), []);
   const removeLoanAction = useCallback((id: string) => setData(current => removeLoanMovement(current, id)), []);
 
   const value = useMemo(() => ({
+    configureReserveAccount: configureReserveAction, saveReserveAccount: saveReserveAction, updateReservePreferences: reservePreferencesAction,
     editLoanMovement: editLoanAction, saveLoan: saveLoanAction, postLoanMovement: postLoanAction, removeLoanMovement: removeLoanAction,
     data: displayData,
     hydrated,
@@ -332,7 +341,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     transactionSheetOpen,
     openTransactionSheet,
     closeTransactionSheet,
-  }), [editLoanAction, saveLoanAction, postLoanAction, removeLoanAction, displayData, hydrated, addTransaction, updateTransaction, deleteTransaction, duplicateTransaction, updateSettings, updateSalary, addSalary, deleteSalary, updateFund, updateCycle, addFund, deleteFund, restartCycle, undoCycleRestart, updateFundAccount, addFundAccount, deleteFundAccount, saveFrontaxEntry, deleteFrontaxEntry, updateFrontaxYearAdjustments, resetDemo, replaceData, editingTransaction, transactionPreset, transactionSheetOpen, openTransactionSheet, closeTransactionSheet]);
+  }), [configureReserveAction, saveReserveAction, reservePreferencesAction, editLoanAction, saveLoanAction, postLoanAction, removeLoanAction, displayData, hydrated, addTransaction, updateTransaction, deleteTransaction, duplicateTransaction, updateSettings, updateSalary, addSalary, deleteSalary, updateFund, updateCycle, addFund, deleteFund, restartCycle, undoCycleRestart, updateFundAccount, addFundAccount, deleteFundAccount, saveFrontaxEntry, deleteFrontaxEntry, updateFrontaxYearAdjustments, resetDemo, replaceData, editingTransaction, transactionPreset, transactionSheetOpen, openTransactionSheet, closeTransactionSheet]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

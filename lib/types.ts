@@ -6,6 +6,16 @@ export interface FundAccount {
   id: string;
   name: string;
   balance: number;
+  taxReserveTracking?: TaxReserveTracking;
+}
+
+export interface TaxReserveTracking {
+  loanId: string;
+  monthlyContribution: number;
+  monthlyLoan: number;
+  startMonth: string;
+  endMonth: string;
+  recordedMonths?: Record<string, { contribution: number; loanAdvance: number }>;
 }
 
 export interface Fund {

@@ -9,7 +9,7 @@ export function applyFundDelta(fund: Fund, delta: number, accountId?: string) {
 }
 
 export function applyTransactionToFunds(funds: Fund[], transaction: Transaction, direction: 1 | -1) {
-  const currentDate = new Date().toISOString().slice(0, 10);
+  const currentDate = new Date().toLocaleDateString("sv-SE");
   if (transaction.type === "expense" && transaction.recurringBudgetId) return funds;
   if (transaction.type === "expense" && transaction.paymentMethod === "amex" && transaction.recurrence) {
     const reservedOccurrences = (transaction.recurrence.amexReservedDates ?? []).filter((date) => date <= currentDate).length;
