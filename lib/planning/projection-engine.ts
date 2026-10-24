@@ -20,6 +20,7 @@ function event(id: string, month: string, title: string, detail: string, liquidi
 }
 
 function projectMonths(scenario: FinancialScenario) {
+  let loanCapital = scenario.openingLoanCapital ?? 0;
   let availableLiquidity = scenario.openingAvailableLiquidity.value;
   let taxReserve = scenario.openingTaxReserve.value;
   let investments = scenario.openingInvestments.value;
@@ -142,7 +143,13 @@ function projectMonths(scenario: FinancialScenario) {
     const homeEquity = hasPurchasedHome
       ? Math.max(0, (homeValue - mortgagePrincipal) * scenario.housing.ownershipShare.value)
       : 0;
-    const netWorth = availableLiquidity + investments + homeEquity;
+    const loanFlows = (scenario.loanCashflows ?? []).filter(p => p.month === month);
+    for (const flow of loanFlows) {
+      if (flow.tax) taxReserve += flow.amount; else availableLiquidity += flow.amount;
+      loanCapital -= flow.amount;
+      monthEvents.push(event(`loan-${month}-${monthEvents.length}`, month, flow.title, "Movimento capitale previsto · non reddito o consumo", flow.amount, "debt"));
+    }
+    const netWorth = availableLiquidity + investments + homeEquity + loanCapital + (scenario.includeTaxInNetWorth ? taxReserve : 0);
 
     allEvents.push(...monthEvents);
     months.push({
@@ -194,7 +201,7 @@ function buildYearly(scenario: FinancialScenario, months: ProjectionMonth[]) {
       investments: scenario.openingInvestments.value,
       taxReserve: scenario.openingTaxReserve.value,
       homeEquity: 0,
-      netWorth: scenario.openingAvailableLiquidity.value + scenario.openingInvestments.value,
+      netWorth: scenario.openingAvailableLiquidity.value + scenario.openingInvestments.value + (scenario.openingLoanCapital ?? 0) + (scenario.includeTaxInNetWorth ? scenario.openingTaxReserve.value : 0),
     });
   }
   for (const item of months) {

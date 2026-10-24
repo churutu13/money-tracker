@@ -1,5 +1,6 @@
 "use client";
 
+import { loanForecast } from "@/lib/loans";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDownRight, ArrowUpRight, Banknote, CalendarDays, ChevronRight, CircleGauge, Copy, House, Landmark, Pencil, PiggyBank, Plus, ShieldCheck, Sparkles, Trash2, TrendingUp, WalletCards, X } from "lucide-react";
 import { NumberInput } from "@/components/number-input";
@@ -24,6 +25,7 @@ export default function PlanPage() {
   const [workspace, setWorkspace] = useState<FinancialPlanWorkspace>(() => createInitialPlanningWorkspace());
   const [planningHydrated, setPlanningHydrated] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState("2031-12");
+  const [loanDelay, setLoanDelay] = useState(0);
   const [detailMonth, setDetailMonth] = useState<ProjectionMonth | null>(null);
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function PlanPage() {
   const storedActive = workspace.scenarios.find((scenario) => scenario.id === workspace.activeScenarioId) ?? workspace.scenarios[0];
   const actuals = useMemo(() => planningActualsFromFlow(data), [data]);
   const active = useMemo(() => workspace.useFlowActuals ? applyFlowActuals(storedActive, data) : storedActive, [data, storedActive, workspace.useFlowActuals]);
-  const result = useMemo(() => runProjection(active), [active]);
+  const result = useMemo(() => runProjection({ ...active, loanCashflows: workspace.useFlowActuals ? loanForecast(data, loanDelay).filter(p => p.date >= new Date().toLocaleDateString("sv-SE")).map(p => ({ month: p.date.slice(0,7), amount: p.delta, title: p.title, tax: data.funds.find(f => f.id === p.fundId)?.kind === "tax" })) : active.loanCashflows }), [active, data, loanDelay, workspace.useFlowActuals]);
   const compareStored = workspace.scenarios.find((scenario) => scenario.id === workspace.compareScenarioId && scenario.id !== storedActive.id);
   const compareScenario = useMemo(() => compareStored ? (workspace.useFlowActuals ? applyFlowActuals(compareStored, data) : compareStored) : undefined, [compareStored, data, workspace.useFlowActuals]);
   const compareResult = useMemo(() => compareScenario ? runProjection(compareScenario) : undefined, [compareScenario]);
@@ -94,6 +96,7 @@ export default function PlanPage() {
   return <div className="content-wrap plan-page">
     <PageHeader eyebrow="Future planning" title="Plan" subtitle="See what a decision does to your money before you make it." action={<span className={`plan-model-status ${validation.failed ? "warning" : ""}`}><ShieldCheck size={14} /> {validation.failed ? `${validation.failed} model checks` : `${validation.passed} model checks passed`}</span>} />
 
+    <div className="loan-notice"><label>Ritardo simulato rimborsi prestiti <select value={loanDelay} onChange={e => setLoanDelay(Number(e.target.value))}>{[0,1,2,3].map(n => <option key={n} value={n}>{n} mesi</option>)}</select></label><p>Attiva i dati Flow per includere i piani prestiti nelle proiezioni. Il ritardo aggiorna liquidità, soglie e metriche casa senza modificare il piano.</p></div>
     <section className="plan-scenario-bar" aria-label="Saved scenarios">
       <div className="plan-scenario-tabs">
         {workspace.scenarios.map((scenario) => <button key={scenario.id} className={scenario.id === storedActive.id ? "active" : ""} onClick={() => setWorkspace((current) => ({ ...current, activeScenarioId: scenario.id }))}>{scenario.name}</button>)}

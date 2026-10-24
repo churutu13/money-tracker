@@ -47,6 +47,7 @@ export default function SettingsPage() {
     addSalary,
     deleteSalary,
     updateFund,
+    updateCycle,
     addFund,
     deleteFund,
     deleteTransaction,
@@ -55,6 +56,7 @@ export default function SettingsPage() {
     replaceData,
   } = useFlow();
   const [selectedSalaryId, setSelectedSalaryId] = useState<string | null>(data.salaryProfiles[0]?.id ?? null);
+  const [openFundAccounts, setOpenFundAccounts] = useState<Record<string, boolean>>({});
   const [newFundName, setNewFundName] = useState("");
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [notice, setNotice] = useState("");
@@ -181,32 +183,34 @@ export default function SettingsPage() {
         <div className="settings-card card">
           {data.funds.map((fund) => {
             const accountManaged = fund.kind === "savings" || fund.kind === "tax";
+            const accountsOpen = Boolean(openFundAccounts[fund.id]);
+            const cycleFund = fund.kind === "income" || fund.kind === "available";
             return (
-              <div key={fund.id}>
-              <div className="setting-row fund-setting">
-                <div>
-                  <input className="setting-name-input" aria-label={`${fund.name} name`} value={fund.name} onChange={(event) => updateFund({ ...fund, name: event.target.value })} />
-                  <small>{fund.kind === "income" ? `Recorded per pay cycle · ${incomeSummary.cycle.label}` : fund.kind === "tax" ? "Edit balances by account below" : fund.kind === "available" ? "Income − fixed for this pay cycle" : fund.kind === "savings" ? "Edit balances by account below" : "Separate fund"}</small>
+              <div key={fund.id} className="settings-fund-group">
+                <div className="setting-row fund-setting">
+                  <div>
+                    <input className="setting-name-input" aria-label={`${fund.name} name`} value={fund.name} onChange={(event) => updateFund({ ...fund, name: event.target.value })} />
+                    <small>{fund.kind === "income" ? `Recorded per pay cycle · ${incomeSummary.cycle.label}` : fund.kind === "available" ? (incomeSummary.overridden ? "Manual override · this pay cycle" : "Income − fixed − savings") : accountManaged ? "Manage account balances" : "Separate fund"}</small>
+                    {fund.kind === "available" && incomeSummary.overridden ? <button type="button" className="cash-override-reset" onClick={() => updateCycle({ availableOverride: undefined })}>Use cycle calculation</button> : null}
+                  </div>
+                  {accountManaged ? (
+                    <span className="money-setting managed-balance">
+                      <span className="fund-balance-number">{formatFundBalance(fund.balance)}</span><span>€</span>
+                    </span>
+                  ) : (
+                    <label className="money-setting">
+                      <NumberInput key={cycleFund ? incomeSummary.key : fund.id} aria-label={`${fund.name} balance`} value={fund.kind === "income" ? incomeSummary.values.income : fund.balance} step="0.01" min={fund.kind === "income" ? 0 : undefined} onValueChange={(value) => {
+                        if (value === undefined) return;
+                        if (fund.kind === "income") updateCycle({ income: Math.max(0, value) });
+                        else if (fund.kind === "available") updateCycle({ availableOverride: value });
+                        else updateFund({ ...fund, balance: value });
+                      }} />
+                      <span>€</span>
+                    </label>
+                  )}
+                  {accountManaged ? <button type="button" className="settings-accounts-toggle" aria-label={`${accountsOpen ? "Hide" : "Show"} ${fund.name} accounts`} aria-expanded={accountsOpen} aria-controls={`accounts-${fund.id}`} onClick={() => setOpenFundAccounts((current) => ({ ...current, [fund.id]: !current[fund.id] }))}><ChevronDown size={18} /></button> : fund.kind === "custom" ? <button className="remove-setting" onClick={() => deleteFund(fund.id)} aria-label={`Delete ${fund.name}`}><Trash2 size={15} /></button> : <span className="row-spacer" />}
                 </div>
-                {accountManaged || fund.kind === "available" ? (
-                  <span className="money-setting managed-balance">
-                    <span className="fund-balance-number">{formatFundBalance(fund.kind === "income" ? incomeSummary.values.income : fund.balance)}</span>
-                    <span>€</span>
-                  </span>
-                ) : (
-                  <label className="money-setting">
-                    <NumberInput key={fund.kind === "income" ? incomeSummary.key : fund.id} aria-label={`${fund.name} balance`} value={fund.kind === "income" ? incomeSummary.values.income : fund.balance} step="0.01" min={fund.kind === "income" ? 0 : undefined} onValueChange={(value) => {
-                      if (value === undefined) return;
-                      updateFund(fund.kind === "income"
-                        ? { ...fund, cycleEntries: { ...fund.cycleEntries, [incomeSummary.key]: { ...incomeSummary.values, income: Math.max(0, value) } } }
-                        : { ...fund, balance: value });
-                    }} />
-                    <span>€</span>
-                  </label>
-                )}
-                {fund.kind === "custom" ? <button className="remove-setting" onClick={() => deleteFund(fund.id)} aria-label={`Delete ${fund.name}`}><Trash2 size={15} /></button> : <span className="row-spacer" />}
-              </div>
-              {accountManaged ? <FundAccounts fund={fund} defaultOpen /> : null}
+                {accountManaged && accountsOpen ? <FundAccounts fund={fund} variant="settings" /> : null}
               </div>
             );
           })}

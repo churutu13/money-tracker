@@ -22,6 +22,9 @@ export interface CycleEntry {
   income: number;
   fixed: number;
   lifestyle: number;
+  savings?: number;
+  availableOverride?: number;
+  overrideTransactionBaseline?: number;
 }
 
 export interface Recurrence {
@@ -52,6 +55,7 @@ export interface Transaction {
   amexReserved?: boolean;
   recurringBudgetId?: string;
   recurrence?: Recurrence;
+  loan?: { id: string; kind: "advance" | "repayment"; direction: 1 | -1; planId?: string };
   createdAt: string;
 }
 
@@ -96,6 +100,7 @@ export interface FrontaxYearAdjustments {
 }
 
 export interface FlowData {
+  loans?: PersonalLoan[];
   schemaVersion?: number;
   funds: Fund[];
   transactions: Transaction[];
@@ -103,4 +108,33 @@ export interface FlowData {
   settings: FlowSettings;
   frontaxEntries?: FrontaxEntry[];
   frontaxYearAdjustments?: Record<string, FrontaxYearAdjustments>;
+}
+
+export interface LoanPlanMovement {
+  id: string;
+  kind: "advance" | "repayment";
+  date: string;
+  amount: number;
+  notes?: string;
+}
+export interface PersonalLoan {
+  id: string;
+  title: string;
+  person: string;
+  type: "given" | "received";
+  currency: "EUR";
+  notes: string;
+  startDate: string;
+  startConfirmed: boolean;
+  cap?: number;
+  fundId: string;
+  fundAccountId?: string;
+  linkedFundId?: string;
+  repaymentFrom?: string;
+  repaymentTo?: string;
+  monthlyAdvance?: number;
+  advanceEnd?: string;
+  suspended: boolean;
+  archived: boolean;
+  plan: LoanPlanMovement[];
 }

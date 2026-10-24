@@ -70,7 +70,16 @@ export function TransactionSheet() {
 
   const recurringBudgets = data.transactions.filter((transaction) => transaction.type === "expense" && transaction.recurrence?.spendingBudget && transaction.id !== editingTransaction?.id);
   const evChargingBudget = recurringBudgets.find((budget) => budget.id === "charging")
-    ?? recurringBudgets.find((budget) => /ev charging|ricaric/i.test(budget.name));
+    ?? recurringBudgets.find((budget) => /ev charging|ev fund|ricaric/i.test(budget.name));
+
+  function selectPaymentMethod(method: "bank" | "amex") {
+    setPaymentMethod(method);
+    if (method === "amex") {
+      const availableFund = data.funds.find((fund) => fund.kind === "available");
+      setFundId(availableFund?.id ?? fundId);
+      setFundAccountId(availableFund?.accounts?.[0]?.id ?? "");
+    }
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -153,11 +162,14 @@ export function TransactionSheet() {
             </label>
             {data.funds.find((fund) => fund.id === fundId)?.accounts?.length ? <label className="form-row reveal"><span>{type === "transfer" ? "From account" : "Account"}</span><select value={fundAccountId} onChange={(e) => setFundAccountId(e.target.value)}>{data.funds.find((fund) => fund.id === fundId)?.accounts?.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label> : null}</> : null}
             {type === "transfer" ? <><label className="form-row reveal"><span>To fund</span><select value={destinationFundId} onChange={(e) => { const next = e.target.value; setDestinationFundId(next); setDestinationFundAccountId(data.funds.find((fund) => fund.id === next)?.accounts?.[0]?.id ?? ""); }}>{data.funds.filter((fund) => fund.id !== fundId).map((fund) => <option value={fund.id} key={fund.id}>{fund.name}</option>)}</select></label>{data.funds.find((fund) => fund.id === destinationFundId)?.accounts?.length ? <label className="form-row reveal"><span>To account</span><select value={destinationFundAccountId} onChange={(e) => setDestinationFundAccountId(e.target.value)}>{data.funds.find((fund) => fund.id === destinationFundId)?.accounts?.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select></label> : null}</> : null}
-            {type === "expense" ? <label className="form-row"><span>Paid with</span><select aria-label="Payment method" value={paymentMethod} onChange={(e) => { const method = e.target.value as "bank" | "amex"; setPaymentMethod(method); if (method === "amex") { const availableFund = data.funds.find((fund) => fund.kind === "available"); setFundId(availableFund?.id ?? fundId); setFundAccountId(availableFund?.accounts?.[0]?.id ?? ""); } }}><option value="bank">Bank account</option><option value="amex">American Express</option></select></label> : null}
+            {type === "expense" ? <label className="form-row"><span>Paid with</span><select aria-label="Payment method" value={paymentMethod} onChange={(e) => selectPaymentMethod(e.target.value as "bank" | "amex")}><option value="bank">Bank account</option><option value="amex">American Express</option></select></label> : null}
             {type === "expense" && !recurring && recurringBudgets.length ? <label className="form-row budget-link-row"><span>Take from budget</span><select aria-label="Recurring budget" value={recurringBudgetId} onChange={(e) => {
               const nextBudgetId = e.target.value;
               setRecurringBudgetId(nextBudgetId);
-              if (nextBudgetId === evChargingBudget?.id) setName("Ricarica");
+              if (nextBudgetId === evChargingBudget?.id) {
+                setName("Ricarica");
+                selectPaymentMethod("amex");
+              }
               else if (recurringBudgetId === evChargingBudget?.id && name === "Ricarica") setName("");
             }}><option value="">No recurring budget</option>{recurringBudgets.map((budget) => <option value={budget.id} key={budget.id}>{budget.name} · €{budget.amount.toFixed(2)}</option>)}</select></label> : null}
             <label className="form-row switch-row">

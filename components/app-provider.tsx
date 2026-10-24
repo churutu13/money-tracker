@@ -1,13 +1,21 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { getCycleEntry } from "@/lib/engine";
+import { getCycleEntry, updateCurrentCycle, type CycleEntryPatch } from "@/lib/engine";
+import { applyFundDelta, applyTransactionToFunds } from "@/lib/fund-mutations";
+import { saveLoan, postLoanMovement, removeLoanMovement, editLoanMovement, initialLoans } from "@/lib/loans";
+import type { PersonalLoan, LoanPlanMovement } from "@/lib/types";
 import { demoData } from "@/lib/demo-data";
 import type { FlowData, FlowSettings, FrontaxEntry, FrontaxYearAdjustments, Fund, FundAccount, SalaryProfile, Transaction } from "@/lib/types";
 
 type TransactionPreset = "default" | "fixed" | "amex";
 
 type StoreContextValue = {
+  editLoanMovement: (transactionId: string, movement: LoanPlanMovement) => void;
+  saveLoan: (loan: PersonalLoan) => void;
+  postLoanMovement: (loanId: string, movement: LoanPlanMovement, transactionId?: string) => void;
+  removeLoanMovement: (transactionId: string) => void;
   data: FlowData;
   hydrated: boolean;
   addTransaction: (transaction: Transaction) => void;
@@ -19,6 +27,7 @@ type StoreContextValue = {
   addSalary: (profile: SalaryProfile) => void;
   deleteSalary: (id: string) => void;
   updateFund: (fund: Fund) => void;
+  updateCycle: (patch: CycleEntryPatch) => void;
   addFund: (fund: Fund) => void;
   deleteFund: (id: string) => void;
   updateFundAccount: (fundId: string, account: FundAccount) => void;
@@ -72,6 +81,7 @@ function migrateData(input: FlowData): FlowData {
   });
   const replacementFundId = normalizedFunds.find((fund) => fund.kind === "available")?.id ?? normalizedFunds[0]?.id ?? "";
   const migratedData: FlowData = {
+    loans: initialLoans(input),
     schemaVersion: CURRENT_SCHEMA_VERSION,
     funds: normalizedFunds,
     transactions: input.transactions.map((transaction) => {
@@ -124,39 +134,9 @@ function migrateData(input: FlowData): FlowData {
   return { ...migratedData, funds: restoredFunds };
 }
 
-function applyFundDelta(fund: Fund, delta: number, accountId?: string) {
-  if (fund.accounts === undefined) return { ...fund, balance: fund.balance + delta };
-  const accounts = fund.accounts.length
-    ? fund.accounts.map((account, index) => account.id === accountId || (!accountId && index === 0) ? { ...account, balance: account.balance + delta } : account)
-    : [{ id: `${fund.id}-unallocated`, name: "Unallocated activity", balance: delta }];
-  return { ...fund, accounts, balance: accounts.reduce((sum, account) => sum + account.balance, 0) };
-}
-
-function applyTransactionToFunds(funds: Fund[], transaction: Transaction, direction: 1 | -1) {
-  const currentDate = new Date().toISOString().slice(0, 10);
-  if (transaction.type === "expense" && transaction.recurringBudgetId) return funds;
-  if (transaction.type === "expense" && transaction.paymentMethod === "amex" && transaction.recurrence) {
-    const reservedOccurrences = (transaction.recurrence.amexReservedDates ?? []).filter((date) => date <= currentDate).length;
-    if (!reservedOccurrences) return funds;
-    return funds.map((fund) => fund.id === transaction.fundId
-      ? applyFundDelta(fund, -transaction.amount * reservedOccurrences * direction, transaction.fundAccountId)
-      : fund);
-  }
-  if (transaction.recurrence || transaction.date > currentDate) return funds;
-  return funds.map((fund) => {
-    if (transaction.type === "expense" && fund.id === transaction.fundId) {
-      if (transaction.paymentMethod === "amex" && !transaction.amexReserved) return fund;
-      return applyFundDelta(fund, -transaction.amount * direction, transaction.fundAccountId);
-    }
-    if (transaction.type === "income" && fund.id === transaction.fundId) return applyFundDelta(fund, transaction.amount * direction, transaction.fundAccountId);
-    if (transaction.type === "transfer" && fund.id === transaction.fundId) return applyFundDelta(fund, -transaction.amount * direction, transaction.fundAccountId);
-    if (transaction.type === "transfer" && fund.id === transaction.destinationFundId) return applyFundDelta(fund, transaction.amount * direction, transaction.destinationFundAccountId);
-    return fund;
-  });
-}
-
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<FlowData>(demoData);
+  const router = useRouter();
+  const [data, setData] = useState<FlowData>(() => ({ ...demoData, loans: initialLoans(demoData) }));
   const [currentDay, setCurrentDay] = useState(() => new Date().toDateString());
   const [hydrated, setHydrated] = useState(false);
   const [transactionSheetOpen, setTransactionSheetOpen] = useState(false);
@@ -226,6 +206,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteTransaction = useCallback((id: string) => {
     setData((current) => {
       const previous = current.transactions.find((item) => item.id === id);
+      if (previous?.loan) { try { return removeLoanMovement(current, id); } catch { return current; } }
       return {
         ...current,
         funds: previous ? applyTransactionToFunds(current.funds, previous, -1) : current.funds,
@@ -234,8 +215,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
   const duplicateTransaction = useCallback((transaction: Transaction) => {
+    if (transaction.loan) return;
     addTransaction({
       ...transaction,
+      loan: undefined,
       id: crypto.randomUUID(),
       name: `${transaction.name} copy`,
       amexReserved: false,
@@ -249,11 +232,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const addSalary = useCallback((profile: SalaryProfile) => setData((current) => ({ ...current, salaryProfiles: [...current.salaryProfiles, profile] })), []);
   const deleteSalary = useCallback((id: string) => setData((current) => ({ ...current, salaryProfiles: current.salaryProfiles.filter((item) => item.id !== id) })), []);
+  const updateCycle = useCallback((patch: CycleEntryPatch) => setData((current) => updateCurrentCycle(current, patch)), []);
   const updateFund = useCallback((fund: Fund) => setData((current) => ({ ...current, funds: current.funds.map((item) => item.id === fund.id ? fund : item) })), []);
   const addFund = useCallback((fund: Fund) => setData((current) => ({ ...current, funds: [...current.funds, fund] })), []);
   const deleteFund = useCallback((id: string) => setData((current) => {
     const replacement = current.funds.find((item) => item.kind === "available")?.id ?? current.funds.find((item) => item.id !== id)?.id ?? "";
-    return { ...current, funds: current.funds.filter((item) => item.id !== id), transactions: current.transactions.map((item) => ({ ...item, fundId: item.fundId === id ? replacement : item.fundId, fundAccountId: item.fundId === id ? undefined : item.fundAccountId, destinationFundId: item.destinationFundId === id ? undefined : item.destinationFundId, destinationFundAccountId: item.destinationFundId === id ? undefined : item.destinationFundAccountId })) };
+    return { ...current, loans: current.loans?.map(loan => ({ ...loan, fundId: loan.fundId === id ? replacement : loan.fundId, fundAccountId: loan.fundId === id ? undefined : loan.fundAccountId, linkedFundId: loan.linkedFundId === id ? undefined : loan.linkedFundId })), funds: current.funds.filter((item) => item.id !== id), transactions: current.transactions.map((item) => ({ ...item, fundId: item.fundId === id ? replacement : item.fundId, fundAccountId: item.fundId === id ? undefined : item.fundAccountId, destinationFundId: item.destinationFundId === id ? undefined : item.destinationFundId, destinationFundAccountId: item.destinationFundId === id ? undefined : item.destinationFundAccountId })) };
   }), []);
   const updateFundAccount = useCallback((fundId: string, account: FundAccount) => setData((current) => ({
     ...current,
@@ -273,6 +257,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   })), []);
   const deleteFundAccount = useCallback((fundId: string, accountId: string) => setData((current) => ({
     ...current,
+    loans: current.loans?.map(loan => loan.fundId === fundId && loan.fundAccountId === accountId ? { ...loan, fundAccountId: undefined } : loan),
     funds: current.funds.map((fund) => {
       if (fund.id !== fundId) return fund;
       const accounts = (fund.accounts ?? []).filter((account) => account.id !== accountId);
@@ -294,19 +279,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ...current,
     frontaxYearAdjustments: { ...(current.frontaxYearAdjustments ?? {}), [String(year)]: adjustments },
   })), []);
-  const resetDemo = useCallback(() => setData(demoData), []);
+  const resetDemo = useCallback(() => setData({ ...demoData, loans: initialLoans(demoData) }), []);
   const replaceData = useCallback((nextData: FlowData) => setData(migrateData(nextData)), []);
   const openTransactionSheet = useCallback((transaction?: Transaction, preset: TransactionPreset = "default") => {
+    if (transaction?.loan) { router.push(`/loans?loan=${transaction.loan.id}`); return; }
     setEditingTransaction(transaction ?? null);
     setTransactionPreset(preset);
     setTransactionSheetOpen(true);
-  }, []);
+  }, [router]);
   const closeTransactionSheet = useCallback(() => {
     setTransactionSheetOpen(false);
     setTimeout(() => { setEditingTransaction(null); setTransactionPreset("default"); }, 220);
   }, []);
 
+  const editLoanAction = useCallback((id: string, movement: LoanPlanMovement) => setData(current => editLoanMovement(current, id, movement)), []);
+  const saveLoanAction = useCallback((loan: PersonalLoan) => setData(current => saveLoan(current, loan)), []);
+  const postLoanAction = useCallback((id: string, movement: LoanPlanMovement, transactionId?: string) => setData(current => postLoanMovement(current, id, movement, transactionId)), []);
+  const removeLoanAction = useCallback((id: string) => setData(current => removeLoanMovement(current, id)), []);
+
   const value = useMemo(() => ({
+    editLoanMovement: editLoanAction, saveLoan: saveLoanAction, postLoanMovement: postLoanAction, removeLoanMovement: removeLoanAction,
     data: displayData,
     hydrated,
     addTransaction,
@@ -318,6 +310,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addSalary,
     deleteSalary,
     updateFund,
+    updateCycle,
     addFund,
     deleteFund,
     updateFundAccount,
@@ -333,7 +326,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     transactionSheetOpen,
     openTransactionSheet,
     closeTransactionSheet,
-  }), [displayData, hydrated, addTransaction, updateTransaction, deleteTransaction, duplicateTransaction, updateSettings, updateSalary, addSalary, deleteSalary, updateFund, addFund, deleteFund, updateFundAccount, addFundAccount, deleteFundAccount, saveFrontaxEntry, deleteFrontaxEntry, updateFrontaxYearAdjustments, resetDemo, replaceData, editingTransaction, transactionPreset, transactionSheetOpen, openTransactionSheet, closeTransactionSheet]);
+  }), [editLoanAction, saveLoanAction, postLoanAction, removeLoanAction, displayData, hydrated, addTransaction, updateTransaction, deleteTransaction, duplicateTransaction, updateSettings, updateSalary, addSalary, deleteSalary, updateFund, updateCycle, addFund, deleteFund, updateFundAccount, addFundAccount, deleteFundAccount, saveFrontaxEntry, deleteFrontaxEntry, updateFrontaxYearAdjustments, resetDemo, replaceData, editingTransaction, transactionPreset, transactionSheetOpen, openTransactionSheet, closeTransactionSheet]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

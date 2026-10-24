@@ -82,7 +82,26 @@ export function recursInMonth(recurrence: Recurrence, month: Date): boolean {
   return recurrenceOccurrencesInMonth(recurrence, month) > 0;
 }
 
-const emptyCycleEntry = (): CycleEntry => ({ income: 0, fixed: 0, lifestyle: 0 });
+const emptyCycleEntry = (): CycleEntry => ({ income: 0, fixed: 0, savings: 0, lifestyle: 0 });
+
+// Recurring allocations (including EV) are already covered by the cycle totals.
+export function getCycleTransactionDelta(data: FlowData, date = new Date()) {
+  const cycle = getFinancialCycle(date, getCycleStartDay(data));
+  const today = atNoon(date);
+  const availableIds = new Set(data.funds.filter((fund) => fund.kind === "available").map((fund) => fund.id));
+  return data.transactions.reduce((total, transaction) => {
+    const posted = new Date(`${transaction.date}T12:00:00`);
+    if (transaction.recurrence || posted < cycle.start || posted > cycle.end || posted > today) return total;
+    if (transaction.type === "expense" && transaction.recurringBudgetId) return total;
+    if (transaction.type === "expense" && transaction.paymentMethod === "amex" && !transaction.amexReserved) return total;
+    const fromAvailable = availableIds.has(transaction.fundId);
+    if (transaction.loan) return total + (fromAvailable ? transaction.amount * transaction.loan.direction : 0);
+    if (transaction.type === "expense") return total - (fromAvailable ? transaction.amount : 0);
+    if (transaction.type === "income") return total + (fromAvailable ? transaction.amount : 0);
+    return total - (fromAvailable ? transaction.amount : 0)
+      + (transaction.destinationFundId && availableIds.has(transaction.destinationFundId) ? transaction.amount : 0);
+  }, 0);
+}
 
 export function getCycleEntry(data: FlowData, date = new Date()) {
   const fund = data.funds.find((item) => item.kind === "income");
@@ -90,7 +109,15 @@ export function getCycleEntry(data: FlowData, date = new Date()) {
   const entries = fund?.cycleEntries ?? {};
   const exact = entries[cycle.key];
   const legacyIncome = fund?.monthlyBalances?.[cycle.key];
-  const values = exact ?? (legacyIncome !== undefined ? { ...emptyCycleEntry(), income: legacyIncome } : emptyCycleEntry());
+  const recorded = exact ?? (legacyIncome !== undefined ? { ...emptyCycleEntry(), income: legacyIncome } : emptyCycleEntry());
+  const savings = recorded.savings ?? 0;
+  const calculatedAvailable = recorded.income - recorded.fixed - savings;
+  const overridden = recorded.availableOverride !== undefined;
+  const transactionDelta = getCycleTransactionDelta(data, date);
+  const available = overridden
+    ? recorded.availableOverride! + transactionDelta - (recorded.overrideTransactionBaseline ?? 0)
+    : calculatedAvailable + transactionDelta;
+  const values = { ...recorded, savings, lifestyle: available };
   const source = exact ? "current" : legacyIncome !== undefined ? "legacy" : "empty";
   return {
     fund,
@@ -100,9 +127,30 @@ export function getCycleEntry(data: FlowData, date = new Date()) {
     inherited: false,
     source,
     sourceKey: exact ? cycle.key : undefined,
-    available: values.income - values.fixed,
-    remaining: values.income - values.fixed - values.lifestyle,
+    calculatedAvailable,
+    transactionDelta,
+    overridden,
+    available,
+    remaining: available,
   };
+}
+
+export type CycleEntryPatch = Partial<Pick<CycleEntry, "income" | "fixed" | "savings" | "availableOverride">>;
+
+export function updateCurrentCycle(data: FlowData, patch: CycleEntryPatch, date = new Date()): FlowData {
+  const current = getCycleEntry(data, date);
+  if (!current.fund) return data;
+  const fundId = current.fund.id;
+  const entry = { ...current.values, ...patch };
+  if (Object.prototype.hasOwnProperty.call(patch, "availableOverride")) {
+    entry.overrideTransactionBaseline = patch.availableOverride === undefined ? undefined : current.transactionDelta;
+  }
+  entry.lifestyle = entry.availableOverride !== undefined
+    ? entry.availableOverride + current.transactionDelta - (entry.overrideTransactionBaseline ?? 0)
+    : entry.income - entry.fixed - (entry.savings ?? 0) + current.transactionDelta;
+  return { ...data, funds: data.funds.map((fund) => fund.id === fundId
+    ? { ...fund, cycleEntries: { ...fund.cycleEntries, [current.key]: entry } }
+    : fund) };
 }
 
 export function getAmexCycle(date = new Date()) {
@@ -158,7 +206,7 @@ export function getAmexPurchases(data: FlowData, date = new Date()): AmexPurchas
 
 export function getAmexSummary(data: FlowData, date = new Date()) {
   const cycle = getAmexCycle(date);
-  const purchases = getAmexPurchases(data);
+  const purchases = getAmexPurchases(data, date);
   const current = purchases.filter((transaction) => {
     const transactionDate = new Date(`${transaction.date}T12:00:00`);
     return transactionDate >= cycle.start && transactionDate <= cycle.end;

@@ -12,7 +12,8 @@ import { useFlow } from "@/components/app-provider";
 import { getAmexSummary, getCycleEntry, getRecurringBudgetProgress, recurrenceDatesInRange } from "@/lib/engine";
 import { forecastFrontax, frontaxEntriesForYear, frontaxReserveProgress } from "@/lib/frontax";
 import { formatMoney } from "@/lib/format";
-import type { CycleEntry } from "@/lib/types";
+
+type CycleInputField = "income" | "fixed" | "savings";
 
 type HomeSectionKey = "amex" | "cycle" | "upcoming" | "reserves";
 type HomeSectionState = Record<HomeSectionKey, boolean>;
@@ -23,7 +24,7 @@ const DEFAULT_HOME_SECTIONS: HomeSectionState = { amex: true, cycle: true, upcom
 type SalaryBreakdown = { id: string; salary: number; taxReserve: number; upcomingBills: number };
 
 export default function HomePage() {
-  const { data, hydrated, openTransactionSheet, updateFund, updateSalary } = useFlow();
+  const { data, hydrated, openTransactionSheet, updateCycle, updateSalary } = useFlow();
   const [openSections, setOpenSections] = useState<HomeSectionState>(DEFAULT_HOME_SECTIONS);
   const [salaryBreakdown, setSalaryBreakdown] = useState<SalaryBreakdown | null>(null);
   const [cashGlow, setCashGlow] = useState(false);
@@ -124,10 +125,8 @@ export default function HomePage() {
     });
   }
 
-  function updateCycleValue(field: keyof CycleEntry, value: number | undefined) {
-    if (!cycleEntry.fund) return;
-    const next = { ...cycleEntry.values, [field]: Math.max(0, value ?? 0) };
-    updateFund({ ...cycleEntry.fund, cycleEntries: { ...(cycleEntry.fund.cycleEntries ?? {}), [cycleEntry.key]: next } });
+  function updateCycleValue(field: CycleInputField, value: number | undefined) {
+    updateCycle({ [field]: Math.max(0, value ?? 0) });
   }
 
   function updateCycleOvertime(value: number | undefined) {
@@ -169,7 +168,7 @@ export default function HomePage() {
             ><span>{label}</span><strong>{Number(value) >= 0 ? "+" : "−"}{formatMoney(Math.abs(Number(value)), true)}</strong></motion.div>)}
           </motion.div> : null}
         </AnimatePresence>
-        <p>Income − fixed for this pay cycle</p><div className="balance-divider" />
+        <p>Available in your bank account now</p><div className="balance-divider" />
         <div className="available-split"><div><span>After unreserved Amex</span><strong className={afterAmex < 0 ? "negative-text" : ""}>{formatMoney(afterAmex)}</strong></div><div><span>Still to set aside</span><strong>{formatMoney(amex.unreservedOutstanding)}</strong></div></div>
       </motion.article>
       <details className="amex-home-card card home-collapsible-card" open={openSections.amex} onToggle={(event) => rememberSection("amex", event.currentTarget.open)}>
@@ -195,13 +194,13 @@ export default function HomePage() {
         <span className="home-menu-arrow"><ChevronDown size={18} /></span>
       </summary>
       <div className="cycle-ledger-link"><Link href="/settings">Manage fixed expenses <ChevronRight size={14} /></Link></div>
-      <div className="cycle-ledger-note">Enter your totals for this cycle. Income, fixed and lifestyle start at zero each payday.</div>
+      <div className="cycle-ledger-note">Enter your totals for this cycle. Income, fixed and savings start at zero each payday. Lifestyle is your available cash.</div>
       <div className="cycle-ledger-grid">
         <CycleInput label="Income" field="income" value={cycleEntry.values.income} cycleKey={cycleEntry.key} onChange={updateCycleValue} />
         <CycleInput label="Fixed" field="fixed" value={cycleEntry.values.fixed} cycleKey={cycleEntry.key} onChange={updateCycleValue} />
-        <CycleInput label="Lifestyle" field="lifestyle" value={cycleEntry.values.lifestyle} cycleKey={cycleEntry.key} onChange={updateCycleValue} />
+        <CycleInput label="Savings" field="savings" value={cycleEntry.values.savings} cycleKey={cycleEntry.key} onChange={updateCycleValue} />
         <label className="cycle-input overtime-cycle-input"><span><CalendarClock size={15} />Overtime hours</span><div><NumberInput key={`${cycleEntry.key}-overtime`} min="0" step="0.1" value={cycleOvertime} onValueChange={updateCycleOvertime} aria-label="Overtime hours for current pay cycle" /><small>hours</small></div><small>Informational · included in payslip amounts</small></label>
-        <div className={`cycle-result ${cycleEntry.remaining < 0 ? "negative" : ""}`}><span>Remaining</span><strong>{formatMoney(cycleEntry.remaining)}</strong><small>Income − fixed − lifestyle</small></div>
+        <div className={`cycle-result ${cycleEntry.remaining < 0 ? "negative" : ""}`}><span>Lifestyle · Available Cash</span><strong>{formatMoney(cycleEntry.available)}</strong><small>{cycleEntry.overridden ? "Manual balance + subsequent transactions" : "Income − fixed − savings + transactions"}</small></div>
       </div>
     </details> : null}
 
@@ -233,7 +232,7 @@ export default function HomePage() {
   </div>;
 }
 
-function CycleInput({ label, field, value, cycleKey, onChange }: { label: string; field: keyof CycleEntry; value: number; cycleKey: string; onChange: (field: keyof CycleEntry, value: number | undefined) => void }) {
-  const icon = field === "income" ? <CircleDollarSign size={15} /> : field === "fixed" ? <CalendarClock size={15} /> : <WalletCards size={15} />;
+function CycleInput({ label, field, value, cycleKey, onChange }: { label: string; field: CycleInputField; value: number; cycleKey: string; onChange: (field: CycleInputField, value: number | undefined) => void }) {
+  const icon = field === "income" ? <CircleDollarSign size={15} /> : field === "fixed" ? <CalendarClock size={15} /> : <PiggyBank size={15} />;
   return <label className="cycle-input"><span>{icon}{label}</span><div><small>€</small><NumberInput key={`${cycleKey}-${field}`} min="0" step="0.01" value={value} onValueChange={(next) => onChange(field, next)} aria-label={`${label} for current pay cycle`} /></div></label>;
 }

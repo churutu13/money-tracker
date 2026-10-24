@@ -50,6 +50,9 @@ export interface HousingScenario {
 }
 
 export interface FinancialScenario {
+  loanCashflows?: { month: string; amount: number; title: string; tax: boolean }[];
+  openingLoanCapital?: number;
+  includeTaxInNetWorth?: boolean;
   id: string;
   name: string;
   createdAt: string;

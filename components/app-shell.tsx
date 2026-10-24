@@ -9,6 +9,7 @@ import { TransactionSheet } from "./transaction-sheet";
 const links = [
   { href: "/", label: "Home", icon: House },
   { href: "/transactions", label: "Transactions", icon: ReceiptText },
+  { href: "/loans", label: "Prestiti", icon: CircleDollarSign },
   { href: "/plan", label: "Plan", icon: TrendingUp },
   { href: "/frontax", label: "Frontax", icon: Calculator },
   { href: "/amex", label: "Amex", icon: CreditCard },

@@ -1,3 +1,4 @@
+import { loanForecast, loanTotals } from "../loans";
 import type { FlowData, Transaction } from "../types";
 import { createWorkbookScenario } from "./assumptions";
 import type { FinancialScenario, PlanningActualsSnapshot, RecurringPlanningExpense } from "./types";
@@ -53,7 +54,11 @@ export function applyFlowActuals(scenario: FinancialScenario, data: FlowData): F
   return {
     ...structuredClone(scenario),
     updatedAt: new Date().toISOString(),
-    openingTaxReserve: { ...scenario.openingTaxReserve, value: actuals.taxReserve || scenario.openingTaxReserve.value, status: actuals.taxReserve ? "actual" : scenario.openingTaxReserve.status, source: actuals.taxReserve ? "Flow tax fund" : scenario.openingTaxReserve.source },
+    loanCashflows: loanForecast(data).filter(p => p.date >= new Date().toLocaleDateString("sv-SE")).map(p => ({ month: p.date.slice(0,7), amount: p.delta, title: p.title, tax: data.funds.find(f => f.id === p.fundId)?.kind === "tax" })),
+    openingAvailableLiquidity: { ...scenario.openingAvailableLiquidity, value: actuals.availableLiquidity, status: "actual", source: "Flow savings funds" },
+    includeTaxInNetWorth: true,
+    openingLoanCapital: (data.loans ?? []).reduce((s,l) => s + loanTotals(data,l.id).residual * (l.type === "given" ? 1 : -1), 0),
+    openingTaxReserve: { ...scenario.openingTaxReserve, value: actuals.taxReserve, status: "actual", source: "Flow tax fund" },
     monthlyNetIncome: actuals.salary ? { ...scenario.monthlyNetIncome, value: actuals.salary, status: "actual", source: "Flow salary profile" } : scenario.monthlyNetIncome,
     recurringExpenses,
   };
