@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calculator, CircleDollarSign, CreditCard, House, Plus, ReceiptText, Settings, TrendingUp } from "lucide-react";
+import { Calculator, CircleDollarSign, CreditCard, House, Plus, ReceiptText, Settings } from "lucide-react";
 import { useFlow } from "./app-provider";
 import { TransactionSheet } from "./transaction-sheet";
 
 const links = [
   { href: "/", label: "Home", icon: House },
   { href: "/transactions", label: "Transactions", icon: ReceiptText },
-  { href: "/loans", label: "Prestiti", icon: CircleDollarSign },
-  { href: "/plan", label: "Plan", icon: TrendingUp },
+  { href: "/loans", label: "Prestiti e crediti", shortLabel: "Prestiti", icon: CircleDollarSign },
   { href: "/frontax", label: "Frontax", icon: Calculator },
   { href: "/amex", label: "Amex", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -50,12 +49,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </button>
 
       <nav className="bottom-nav" aria-label="Primary navigation">
-        {links.map(({ href, label, icon: Icon }) => {
+        {links.map(({ href, label, shortLabel, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
             <Link key={href} href={href} className={active ? "active" : ""}>
               <Icon size={21} strokeWidth={active ? 2.2 : 1.7} />
-              <span>{label}</span>
+              <span>{shortLabel ?? label}</span>
             </Link>
           );
         })}

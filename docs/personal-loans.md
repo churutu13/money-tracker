@@ -29,11 +29,12 @@ piano per ID. Sospendere blocca gli anticipi previsti, archiviare esclude tutte 
 previsioni e conserva il capitale effettivo. Le finestre di rimborso senza importi
 non generano flussi. I movimenti previsti scaduti rimangono in timeline per verifica.
 
-Plan include i flussi futuri quantificati quando sono attivi i dati Flow. Usa i
+Il motore di proiezione include i flussi futuri quantificati con i dati Flow. Usa i
 saldi reali savings/tax iniziali, mantenendo la separazione del modello fra
 liquidità disponibile e riserva tasse. Un flusso sul fondo tasse modifica la
-riserva, gli altri la liquidità. Il ritardo 0/1/2/3 mesi è stato temporaneo della UI;
-le metriche di liquidità, soglia e casa sono ricalcolate dal motore esistente.
+riserva, gli altri la liquidità. Il ritardo 0/1/2/3 mesi è stato temporaneo della UI. La pagina Prestiti mostra
+l’effetto dei flussi di capitale. La vecchia pagina Plan non è più esposta e
+`/plan` reindirizza a `/loans`; il motore e i suoi test sono conservati.
 Con i dati Flow il patrimonio include liquidità, riserva tasse e capitale netto
 prestiti una volta sola. Gli scenari workbook conservano la propria convenzione
 precedente, che esclude la riserva tasse.
